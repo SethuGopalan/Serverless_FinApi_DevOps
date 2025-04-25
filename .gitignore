@@ -1,0 +1,4 @@
+.nitric/
+.venv/
+nitric-spec.json
+.qodo

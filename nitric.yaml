@@ -1,0 +1,15 @@
+services:
+  - name: api
+    image: ./services
+    dockerfile: python.dockerfile
+    main: api.py
+    match: "services/*.py"
+
+    env:
+      HANDLER: api.py
+    triggers:
+      - type: http
+        target: finance-api
+        routes:
+          - path: /stock-data
+            method: GET

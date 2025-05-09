@@ -1,12 +1,21 @@
+name: financeapi
+
+resources:
+  - name: finance-api
+    type: api
+
 services:
   - name: api
-    image: ./services
-    dockerfile: python.dockerfile
-    main: api.py
+    buildType: docker
+    docker:
+      dockerfile: ./python.dockerfile
+      context: ./services
+    main: services/api.py
     match: "services/*.py"
-
     env:
-      HANDLER: api.py
+      HANDLER: services/api:main
+      PORT: 4001
+
     triggers:
       - type: http
         target: finance-api

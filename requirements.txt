@@ -1,0 +1,4 @@
+nitric==1.2.4
+yfinance==0.2.52
+uvicorn==0.29.0
+fastapi==0.110.0

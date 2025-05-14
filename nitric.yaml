@@ -1,7 +1,8 @@
-name: financeapi
+name: populationapi
+stage: dev
 
 resources:
-  - name: finance-api
+  - name: population-api
     type: api
 
 services:
@@ -11,14 +12,14 @@ services:
       dockerfile: ./python.dockerfile
       context: ./services
     main: services/api.py
-    match: "services/*.py"
+    match: "**/*.py"
     env:
       HANDLER: services/api:main
       PORT: 4001
 
     triggers:
       - type: http
-        target: finance-api
+        target: population-api
         routes:
-          - path: /stock-data
+          - path: /population
             method: GET

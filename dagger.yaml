@@ -1,0 +1,19 @@
+pipelines:
+  deploy-api-and-spiffe:
+    description: Deploy FastAPI API to AWS and setup SPIRE on EC2 using Terraform
+    steps:
+      - name: Deploy FastAPI with Nitric
+        run:
+          command: |
+            npm install -g @nitric/cli
+            nitric deploy --yes
+
+      - name: Provision SPIRE Server on EC2
+        run:
+          command: |
+            terraform init
+            terraform apply -auto-approve
+
+      - name: Confirm Deployment
+        run:
+          command: echo "✅ API and SPIFFE successfully deployed to AWS."

@@ -1,47 +1,68 @@
+import json  # ✅ Required for serialization
 from nitric.resources import api
 from nitric.application import Nitric
 from nitric.context import HttpContext
-import yfinance as yf
+import pandas as pd
 
-main = api("finance-api")
+# Load population data
+df = pd.read_csv("services/Data/2021_population.csv")
 
-@main.get("/stock-data")
-async def stock_data(ctx: HttpContext):
+main = api("population-api")
+
+@main.get("/population")
+async def get_population(ctx: HttpContext):
     try:
-        tickers = ctx.req.query.get('tickers')
-        if not tickers:
+        country = ctx.req.query.get("country", [""])[0].strip()
+        year = ctx.req.query.get("year", [""])[0].strip()
+
+        column_map = {
+            "2020": "2020_population",
+            "2021": "2021_last_updated"
+        }
+
+        if not country or not year:
             ctx.res.status = 400
-            ctx.res.body = {"error": "Missing 'tickers' parameter"}
+            ctx.res.body = json.dumps({"error": "Missing 'country' or 'year' parameter"})
+            ctx.res.headers["Content-Type"] = "application/json"
             return
 
-        if isinstance(tickers, list):
-            tickers = tickers[0]
-
-        time_period = ctx.req.query.get('time_period', '1mo')
-        data_intervals = ctx.req.query.get('data_intervals', '1d')
-        if isinstance(data_intervals, list):
-            data_intervals = data_intervals[0]
-        print("🔍 Fetching:", tickers, time_period, data_intervals)
-
-        valid_intervals = ["1d", "5d", "1wk", "1mo", "3mo"]
-        if data_intervals not in valid_intervals:
-            ctx.res.json = {
-                "error": f"Invalid data interval. Choose from {valid_intervals}."
-            }
-            return
-
-        # Updated line using yf.download
-        data = yf.download(tickers, period=time_period, interval=data_intervals)
-
-        if data.empty:
+        column_name = column_map.get(year)
+        if not column_name:
             ctx.res.status = 404
-            ctx.res.body = {"error": "No data found for the given parameters"}
+            ctx.res.body = json.dumps({"error": f"No data available for year {year}"})
+            ctx.res.headers["Content-Type"] = "application/json"
             return
 
-        ctx.res.json = data.to_dict()
+        result_row = df[df["country"].str.lower() == country.lower()]
+        if result_row.empty:
+            ctx.res.status = 404
+            ctx.res.body = json.dumps({"error": f"No data found for country '{country}'"})
+            ctx.res.headers["Content-Type"] = "application/json"
+            return
+
+        population_raw = result_row.iloc[0][column_name]
+        try:
+            population_clean = int(str(population_raw).replace(",", "").strip())
+        except ValueError:
+            ctx.res.status = 500
+            ctx.res.body = json.dumps({"error": "Invalid population data format"})
+            ctx.res.headers["Content-Type"] = "application/json"
+            return
+
+        response = {
+            "country": country,
+            "year": year,
+            "population": population_clean
+        }
+
+        print("✅ Sending response:", response)
+        ctx.res.body = json.dumps(response)  # ✅ This line fixes it
+        ctx.res.headers["Content-Type"] = "application/json"
+        return
 
     except Exception as e:
         ctx.res.status = 500
-        ctx.res.body = {"error": str(e)}
+        ctx.res.body = json.dumps({"error": str(e)})
+        ctx.res.headers["Content-Type"] = "application/json"
 
 Nitric.run()

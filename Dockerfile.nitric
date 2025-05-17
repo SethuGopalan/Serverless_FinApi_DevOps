@@ -1,0 +1,19 @@
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y curl tar bash && \
+    rm -rf /var/lib/apt/lists/*
+
+# Download and install Nitric CLI
+RUN curl -LO https://github.com/nitrictech/cli/releases/download/v1.28.1/nitric-linux-amd64.tar.gz && \
+    tar -xzf nitric-linux-amd64.tar.gz && \
+    chmod +x nitric && \
+    mv nitric /usr/local/bin/nitric && \
+    rm nitric-linux-amd64.tar.gz
+
+# Verify install
+RUN nitric --version
+
+WORKDIR /app
+

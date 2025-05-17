@@ -2,3 +2,4 @@
 .venv/
 nitric-spec.json
 .qodo
+.env

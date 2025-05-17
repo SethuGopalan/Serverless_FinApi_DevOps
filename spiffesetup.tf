@@ -5,11 +5,17 @@ provider "aws" {
 variable "vpc_id" {}
 variable "subnet_id" {}
 
+resource "random_string" "suffix" {
+  length  = 4
+  special = false
+}
+
 # ✅ Security Group for SPIRE Server
-resource "aws_security_group" "spire_sg" {
-  name        = "spire-sg"
+resource "aws_security_group" "Ip_spire_sg" {
+  name        = "Ip_spire-sg-${random_string.suffix.result}"
   description = "Allow SPIRE server traffic"
   vpc_id      = var.vpc_id
+
 
   ingress {
     description = "SPIRE server port"
@@ -32,7 +38,7 @@ resource "aws_instance" "spire_server" {
   ami                    = "ami-0c7217cdde317cfec" # Amazon Linux 2 (x86_64)
   instance_type          = "t3.micro"
   subnet_id              = var.subnet_id
-  vpc_security_group_ids = [aws_security_group.spire_sg.id]
+  vpc_security_group_ids = [aws_security_group.Ip_spire_sg.id]
 
   # 🚫 Skip IAM instance profile because you're using DEVOPS role already
 

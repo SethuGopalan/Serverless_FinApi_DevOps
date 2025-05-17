@@ -1,43 +1,74 @@
-# Import the Dagger SDK for defining and running CI/CD pipelines
 import dagger
-
-# Import Boto3, the AWS SDK for Python, to interact with AWS resources
 import boto3
+import os
+from dotenv import load_dotenv
+import asyncio
 
-# Define a function to fetch default VPC and subnet ID from AWS
+load_dotenv()
+
 def get_aws_network():
-    # Initialize EC2 client in us-east-1 region
     ec2 = boto3.client("ec2", region_name="us-east-1")
-    
-    # Fetch default VPC by filtering for "isDefault = true"
     vpcs = ec2.describe_vpcs(Filters=[{"Name": "isDefault", "Values": ["true"]}])
-    # Extract the VPC ID of the default VPC
     vpc_id = vpcs["Vpcs"][0]["VpcId"]
-
-    # Get all subnets that belong to the above VPC
     subnets = ec2.describe_subnets(Filters=[{"Name": "vpc-id", "Values": [vpc_id]}])
-    # Take the first subnet ID from the list
     subnet_id = subnets["Subnets"][0]["SubnetId"]
-
-    # Return both VPC and Subnet IDs
     return vpc_id, subnet_id
 
-# Open a connection to the Dagger engine
-with dagger.Connection() as client:
-    # Call the function to get VPC and Subnet IDs from AWS
+async def main():
     vpc_id, subnet_id = get_aws_network()
 
-    # Create a container from the official Terraform image
-    container = (
-        client.container()
-        .from_("hashicorp/terraform:light")
-        .with_mounted_directory("/app", client.host().directory("."))
-        .with_workdir("/app")
-        .with_env_variable("TF_VAR_vpc_id", vpc_id)
-        .with_env_variable("TF_VAR_subnet_id", subnet_id)
-        .with_exec(["terraform", "init"])
-        .with_exec(["terraform", "apply", "-auto-approve"])
-    )
-    container.exit()
+    async with dagger.Connection() as client:
+        host_dir = client.host().directory(".")
+
+        # Step 1: Terraform Destroy
+        destroy = (
+            client.container()
+            .from_("hashicorp/terraform:light")
+            .with_mounted_directory("/app", host_dir)
+            .with_workdir("/app")
+            .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
+            .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
+            .with_env_variable("AWS_REGION", os.getenv("AWS_REGION"))
+            .with_env_variable("TF_VAR_vpc_id", vpc_id)
+            .with_env_variable("TF_VAR_subnet_id", subnet_id)
+            .with_exec(["terraform", "init"])
+            .with_exec(["terraform", "destroy", "-auto-approve"])
+        )
+        destroy_output = await destroy.stdout()
+        print("[INFO] Terraform Destroy Output:\n", destroy_output)
+
+        # Step 2: Terraform Apply (SPIRE EC2)
+        apply = (
+            client.container()
+            .from_("hashicorp/terraform:light")
+            .with_mounted_directory("/app", host_dir)
+            .with_workdir("/app")
+            .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
+            .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
+            .with_env_variable("AWS_REGION", os.getenv("AWS_REGION"))
+            .with_env_variable("TF_VAR_vpc_id", vpc_id)
+            .with_env_variable("TF_VAR_subnet_id", subnet_id)
+            .with_exec(["terraform", "init"])
+            .with_exec(["terraform", "plan", "-out=tfplan"])
+            .with_exec(["terraform", "apply", "tfplan"])
+        )
+        apply_output = await apply.stdout()
+        print("[INFO] Terraform Apply Output:\n", apply_output)
+
+        # Step 3: Deploy FastAPI via Nitric CLI Docker
+        nitric_up = (
+            client.container()
+            .from_("asalkeld/nitric-cli:latest")
+            .with_mounted_directory("/app", client.host().directory("."))  # ensure nitric-dev.yaml is included
+            .with_workdir("/app")
+            .with_exec(["ls", "-la"])  # optional: verify contents in logs
+            .with_exec(["cat", "nitric.dev.yaml"])  # optional: verify visibility
+            .with_exec(["mv", "nitric.dev.yaml", "nitric-dev.yaml"])
+            .with_exec(["nitric", "up", "--stack", "dev"])
+        )
 
 
+        nitric_output = await nitric_up.stdout()
+        print("[SUCCESS] Nitric Deployment Output:\n", nitric_output)
+
+asyncio.run(main())

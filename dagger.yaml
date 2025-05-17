@@ -1,19 +1,43 @@
 pipelines:
-  deploy-api-and-spiffe:
-    description: Deploy FastAPI API to AWS and setup SPIRE on EC2 using Terraform
+  deploy-api-with-python-vpc-fetch:
+    description: Use Python to fetch VPC/Subnet, then deploy API and SPIRE
     steps:
-      - name: Deploy FastAPI with Nitric
+      - name: Fetch VPC/Subnet ID with Python
         run:
-          command: |
-            npm install -g @nitric/cli
-            nitric deploy --yes
+          command: python quick_vpc_fetch.py > vpc.env
 
-      - name: Provision SPIRE Server on EC2
+      - name: Deploy FastAPI API using Nitric
         run:
-          command: |
-            terraform init
-            terraform apply -auto-approve
+          container:
+            image: node:18
+            env_file: vpc.env
+            env:
+              AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+              AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+              AWS_REGION: us-east-1
+            workdir: /app
+            mounts:
+              /app: .
+            steps:
+              - run: npm install -g @nitric/cli
+              - run: nitric deploy --stack dev --yes
 
-      - name: Confirm Deployment
+      - name: Provision SPIRE Server with Terraform
         run:
-          command: echo "✅ API and SPIFFE successfully deployed to AWS."
+          container:
+            image: hashicorp/terraform:light
+            env_file: vpc.env
+            env:
+              AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+              AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+              AWS_REGION: us-east-1
+            workdir: /app
+            mounts:
+              /app: .
+            steps:
+              - run: terraform init
+              - run: terraform apply -auto-approve
+
+      - name: Done
+        run:
+          command: echo " API and SPIFFE successfully deployed to AWS."

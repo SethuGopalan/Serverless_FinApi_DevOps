@@ -33,7 +33,7 @@ resource "aws_security_group" "Ip_spire_sg" {
   }
 }
 
-# ✅ EC2 Instance using pre-attached IAM role (DEVOPS)
+# EC2 Instance using pre-attached IAM role (DEVOPS)
 resource "aws_instance" "spire_server" {
   ami                    = "ami-0c7217cdde317cfec" # Amazon Linux 2 (x86_64)
   instance_type          = "t3.micro"

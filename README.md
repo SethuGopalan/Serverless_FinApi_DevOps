@@ -1,108 +1,100 @@
-# 🌍 Serverless Population API with Nitric, SPIFFE, Dagger, and Pulumi
+# Population API - Serverless Microservice
 
-This project demonstrates a modern DevOps pipeline for deploying a **FastAPI-based microservice** that serves population data using **Nitric**, **Terraform**, **Pulumi**, **SPIFFE/SPIRE**, and **Dagger**. It showcases secure service-to-service communication, automated deployment, and AWS infrastructure provisioning.
-
----
-
-## 🚀 Tech Stack Overview
-
-| Tool             | Purpose                                            |
-| ---------------- | -------------------------------------------------- |
-| **FastAPI**      | Web framework for building the API                 |
-| **Nitric**       | Infrastructure-as-code + deployment for serverless |
-| **Pulumi**       | Cloud infrastructure provisioning in code          |
-| **Terraform**    | SPIRE server/agent provisioning on AWS EC2         |
-| **Dagger**       | CI/CD pipelines for deployment automation          |
-| **SPIFFE/SPIRE** | Secure workload identity and mTLS                  |
-| **AWS Lambda**   | Serverless backend compute for the API             |
-| **AWS EC2**      | Host for SPIRE server                              |
+This project demonstrates deploying a **FastAPI-based Population Data Microservice** using **Nitric**, **Pulumi**, and **Dagger** with SPIRE for service identity. It is fully serverless and deployed on AWS Lambda with API Gateway.
 
 ---
 
-## 📦 API Features
+## 🚀 Features
 
-- Endpoint: `GET /population`
-- Query Parameters:
-  - `country` – Name of the country (e.g., `India`)
-  - `year` – `2020` or `2021`
-- Returns the population value for the given year and country from a local CSV file stored in the project.
+- **FastAPI** for building the microservice
+- **Nitric** framework to simplify infrastructure provisioning
+- **Pulumi** (via Nitric) to deploy to AWS (Lambda + API Gateway)
+- **Terraform** to provision SPIRE server (mTLS + workload identity)
+- **Dagger** for CI/CD pipeline automation (build + deploy)
+- **Dockerized** setup, easily portable
+- Secure service-to-service communication with **SPIFFE/SPIRE**
 
 ---
 
-## 🛠️ Setup Instructions
+## 🧱 Architecture
 
-### 1. Clone and Install Requirements
+```
++---------------------+
+|  Nitric CLI (Dagger)|
++---------------------+
+         |
+         v
++---------------------+
+| Docker Image (FastAPI)|
+|  built via Dagger     |
++---------------------+
+         |
+         v
++-----------------------------+
+| AWS Lambda + API Gateway    |
++-----------------------------+
+         |
+         v
++-----------------------------+
+|  SPIRE Server on EC2 (Terraform) |
++-----------------------------+
+```
 
+---
+
+## 🐳 Docker Image
+
+The API is containerized and pushed to Docker Hub: `docker.io/7797/population-api:v1`
+
+To build manually:
 ```bash
-git clone https://github.com/SethuGopalan/ServerlessFinApiDevOps.git
-cd ServerlessFinApiDevOps
-pip install -r requirements.txt
-```
-
-### 2. AWS IAM Role Requirements
-
-You must create or use an AWS IAM user or role with the following permissions:
-
-#### ✅ Required Managed Policies:
-
-- `AmazonEC2FullAccess`
-- `AmazonVPCFullAccess`
-- `AmazonSSMFullAccess`
-- `IAMFullAccess`
-- `AWSLambda_FullAccess`
-- `AmazonAPIGatewayAdministrator`
-- `AmazonS3FullAccess`
-
-#### ✅ Important Inline Permissions:
-
-These are required to support SPIRE provisioning and Nitric deployments:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:CreateSecurityGroup",
-        "ec2:DescribeSecurityGroups",
-        "ec2:AuthorizeSecurityGroupIngress",
-        "ec2:RevokeSecurityGroupEgress",
-        "ec2:RunInstances",
-        "ec2:CreateTags",
-        "ec2:DescribeInstances",
-        "iam:PassRole",
-        "ssm:GetParameter",
-        "ssm:PutParameter"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+docker build -t 7797/population-api:v1 -f Dockerfile.api .
+docker push 7797/population-api:v1
 ```
 
 ---
 
-## ⚙️ Project Structure
+## 📁 Project Structure
 
-```plaintext
+```
 .
-├── services/
-│   └── api.py                # FastAPI code with Nitric SDK
-│   └── Data/2021_population.csv
-├── dagger_spiffe.py          # Python pipeline to deploy API + SPIRE
-├── spiffesetup.tf            # Terraform config for SPIRE provisioning
-├── nitric.yaml               # Nitric config file
-├── Dockerfile                # Optional container build
-├── .env                      # AWS credentials (excluded from repo)
-└── README.md                 # This file
+├── api/                     # FastAPI app code
+│   └── main.py
+├── nitric.yaml              # Nitric project config (services, permissions)
+├── nitric.dev.yaml          # Stack config (provider, region)
+├── Dockerfile.api           # Docker image for FastAPI + Nitric SDK
+├── Dockerfile.nitric        # Nitric CLI base image
+├── dagger_spiffe.py         # Dagger pipeline: build, deploy, SPIRE setup
+├── spiffesetup.tf           # Terraform config for SPIRE EC2 setup
+└── README.md
 ```
 
 ---
 
-## ▶️ Running the Dagger Pipeline
+## 🔐 IAM Role & Permissions
 
-Run the full deployment:
+To deploy this application, an AWS IAM user/role must have permissions for:
+
+- **Lambda & API Gateway**
+  - `lambda:*`, `apigateway:*`, `iam:*` (for Nitric to create services)
+- **CloudWatch Logs**
+  - `logs:*`
+- **S3 (if used for storage)** and **SNS (if using messaging)**:
+  - `s3:*`, `sns:*`
+
+Minimum managed policies:
+```json
+[
+  "AWSLambda_FullAccess",
+  "AmazonAPIGatewayAdministrator",
+  "IAMFullAccess",
+  "CloudWatchLogsFullAccess"
+]
+```
+
+---
+
+## 🧪 Run with Dagger
 
 ```bash
 dagger run python dagger_spiffe.py
@@ -110,59 +102,22 @@ dagger run python dagger_spiffe.py
 
 This will:
 
-1. Pull your default VPC and subnet.
-2. Deploy the FastAPI-based Nitric API to AWS using Pulumi.
-3. Provision an EC2 instance with SPIRE using Terraform.
-4. Secure the deployment with SPIFFE-based mTLS.
+1. Destroy old SPIRE infra (Terraform)
+2. Re-provision SPIRE EC2 instance
+3. Build & push Docker image to Docker Hub
+4. Deploy the API using Nitric (Lambda + API Gateway)
+5. Optionally print the public endpoint
 
 ---
 
-## 🌐 Example API Usage
+## 🔒 Security with SPIRE
 
-### ✅ Successful Request:
-
-```bash
-curl "https://your-api-gateway-url/population?country=India&year=2021"
-```
-
-```json
-{
-  "country": "India",
-  "year": "2021",
-  "population": 1393409038
-}
-```
+- SPIRE provides **mTLS** and **workload identity** for secure service-to-service communication.
+- The EC2 instance runs SPIRE server and is managed using Terraform.
+- In production, this should be automated further with SPIRE agents per service.
 
 ---
 
-## 🧪 Testing & Monitoring
+## 📜 License
 
-- **CloudWatch**: Check logs for API and SPIRE instance.
-- **Postman**: Easily test the endpoint with query parameters.
-- **Datadog (optional)**: Can be integrated for monitoring Lambda/API Gateway metrics.
-
----
-
-## 🔐 SPIRE Setup Notes
-
-- A dedicated EC2 instance is provisioned with SPIRE server running on port `8081`.
-- Future extension can include a SPIRE agent and automatic SPIFFE ID issuance for services.
-
----
-
-## 📄 License
-
-This project is under the MIT License.
-
----
-
-## 🙌 Author
-
-**Sethu Gopalan**  
-🌐 GitHub: [@SethuGopalan](https://github.com/SethuGopalan)
-
----
-
-## 📢 Feedback
-
-Contributions, ideas, and improvements are welcome! Feel free to open an issue or PR.
+MIT

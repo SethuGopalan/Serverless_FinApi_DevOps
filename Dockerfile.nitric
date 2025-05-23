@@ -2,18 +2,22 @@ FROM ubuntu:22.04
 
 # Install dependencies
 RUN apt-get update && \
-    apt-get install -y curl tar bash && \
+    apt-get install -y curl tar && \
     rm -rf /var/lib/apt/lists/*
 
-# Download and install Nitric CLI
-RUN curl -LO https://github.com/nitrictech/cli/releases/download/v1.28.1/nitric-linux-amd64.tar.gz && \
-    tar -xzf nitric-linux-amd64.tar.gz && \
-    chmod +x nitric && \
-    mv nitric /usr/local/bin/nitric && \
-    rm nitric-linux-amd64.tar.gz
+# Download and install Nitric CLI using their recommended script
+# This script fetches the correct latest version and handles extraction
+RUN curl -L "https://nitric.io/install?version=latest" | bash
 
-# Verify install
-RUN nitric --version
+# IMPORTANT: Add the Nitric CLI binary directory to the PATH
+# The install script typically places 'nitric' in /root/.nitric/bin for the root user in Docker
+ENV PATH="/root/.nitric/bin:$PATH"
 
+# Set working directory
 WORKDIR /app
 
+# Verify installation
+# CORRECTED: Use 'nitric version' as 'version' is a subcommand, not a flag
+RUN nitric version
+
+CMD ["nitric", "--help"]

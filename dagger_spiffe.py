@@ -56,16 +56,20 @@ async def main():
         print("[INFO] Terraform Apply Output:\n", apply_output)
 
         # Step 3: Deploy FastAPI via Nitric CLI Docker
+        host_dir = client.host().directory(".", exclude=[".venv", "__pycache__"])
         nitric_up = (
             client.container()
-            .from_("asalkeld/nitric-cli:latest")
-            .with_mounted_directory("/app", client.host().directory("."))  # ensure nitric-dev.yaml is included
+            .from_("7797/nitric-cli:v1")  # or a base image with Nitric CLI installed
+            .with_mounted_directory("/app", host_dir)
             .with_workdir("/app")
-            .with_exec(["ls", "-la"])  # optional: verify contents in logs
-            .with_exec(["cat", "nitric.dev.yaml"])  # optional: verify visibility
-            .with_exec(["mv", "nitric.dev.yaml", "nitric-dev.yaml"])
+            .with_exec(["mkdir", "-p", "/root/.nitric"])
+            .with_exec(["bash", "-c", "echo '{}' > /root/.nitric/.user-preferences.json"])
+
+            .with_exec(["ls", "-la"])  # optional debug step
+            .with_exec(["cat", "nitric.yaml"])  # confirm file exists
             .with_exec(["nitric", "up", "--stack", "dev"])
         )
+
 
 
         nitric_output = await nitric_up.stdout()

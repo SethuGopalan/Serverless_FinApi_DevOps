@@ -3,7 +3,7 @@ name: Deploy with Dagger
 on:
   push:
     branches:
-      - dev
+      - master
 
 jobs:
   deploy-api:

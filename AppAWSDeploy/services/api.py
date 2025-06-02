@@ -1,4 +1,5 @@
-import json  # ✅ Required for serialization
+
+import json  # Required for serialization
 from nitric.resources import api
 from nitric.application import Nitric
 from nitric.context import HttpContext
@@ -55,8 +56,8 @@ async def get_population(ctx: HttpContext):
             "population": population_clean
         }
 
-        print("✅ Sending response:", response)
-        ctx.res.body = json.dumps(response)  # ✅ This line fixes it
+        print("Sending response:", response)
+        ctx.res.body = json.dumps(response)  # This line fixes it
         ctx.res.headers["Content-Type"] = "application/json"
         return
 

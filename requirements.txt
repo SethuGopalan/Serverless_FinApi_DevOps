@@ -1,4 +1,0 @@
-boto3==1.38.13
-dagger==1.3.0
-nitric==1.2.4
-pandas==2.2.3

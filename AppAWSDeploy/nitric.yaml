@@ -1,0 +1,25 @@
+name: populationapi
+stage: dev
+
+resources:
+  - name: population-api
+    type: api
+
+services:
+  - name: api
+    buildType: docker
+    docker:
+      dockerfile: ./python.dockerfile
+      context: ./services
+    main: services/api.py
+    match: "**/*.py"
+    env:
+      HANDLER: services/api:main
+      PORT: 4001
+
+    triggers:
+      - type: http
+        target: population-api
+        routes:
+          - path: /population
+            method: GET

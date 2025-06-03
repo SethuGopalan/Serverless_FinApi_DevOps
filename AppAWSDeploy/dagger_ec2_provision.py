@@ -1,14 +1,11 @@
-
 import dagger
 import os
+import asyncio
 
-# Initialize the Dagger client
 async def main():
     async with dagger.Connection() as client:
-        # Mount local Terraform directory
         tf_dir = client.host().directory("AppAWSDeploy", exclude=[".git", "__pycache__"])
 
-        # Create a container to run Terraform
         tf = (
             client.container()
             .from_("hashicorp/terraform:1.5.7")
@@ -19,14 +16,17 @@ async def main():
             .with_env_variable("AWS_REGION", "us-east-1")
         )
 
-        # Terraform init and apply
+        # First: init (important to install plugins)
         await tf.with_exec(["terraform", "init", "-upgrade"]).exit_code()
+
+        # Then: apply with VPC/Subnet
         await tf.with_exec([
-            "terraform", "apply", "-auto-approve",
-            "-var", f'vpc_id={os.getenv("TF_VAR_VPC_ID")}',
-            "-var", f'subnet_id={os.getenv("TF_VAR_SUBNET_ID")}'
+            "terraform", "apply",
+            "-auto-approve",
+            "-var", f"vpc_id={os.getenv('TF_VAR_VPC_ID')}",
+            "-var", f"subnet_id={os.getenv('TF_VAR_SUBNET_ID')}"
         ]).exit_code()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
+

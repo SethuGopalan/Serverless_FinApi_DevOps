@@ -16,11 +16,9 @@ async def main():
             .with_env_variable("AWS_REGION", "us-east-1")
         )
 
-        # Combine init and apply into a single shell command execution
-        # using 'bash -c' to ensure proper command chaining.
-        # This guarantees they run in the same container state.
+        # *** CHANGE THIS LINE: Use "sh" instead of "bash" ***
         terraform_commands = [
-            "bash",
+            "sh", # <--- CHANGED FROM "bash"
             "-c",
             "terraform init -upgrade && terraform apply -auto-approve "
             f"-var vpc_id={os.getenv('TF_VAR_VPC_ID')} "
@@ -34,10 +32,4 @@ async def main():
         print("Terraform operations completed successfully!")
 
 if __name__ == "__main__":
-    # Ensure these environment variables are set in your environment
-    # os.environ["AWS_ACCESS_KEY_ID"] = "YOUR_AWS_ACCESS_KEY_ID"
-    # os.environ["AWS_SECRET_ACCESS_KEY"] = "YOUR_AWS_SECRET_ACCESS_KEY"
-    # os.environ["TF_VAR_VPC_ID"] = "your_vpc_id"
-    # os.environ["TF_VAR_SUBNET_ID"] = "your_subnet_id"
-
     asyncio.run(main())

@@ -21,7 +21,12 @@ async def main():
 
         # Terraform init and apply
         await tf.with_exec(["terraform", "init", "-upgrade"]).exit_code()
-        await tf.with_exec(["terraform", "apply", "-auto-approve"]).exit_code()
+        await tf.with_exec([
+            "terraform", "apply", "-auto-approve",
+            "-var", f'vpc_id={os.getenv("TF_VAR_VPC_ID")}',
+            "-var", f'subnet_id={os.getenv("TF_VAR_SUBNET_ID")}'
+        ]).exit_code()
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())

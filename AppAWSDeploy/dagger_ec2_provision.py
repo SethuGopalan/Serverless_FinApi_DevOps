@@ -6,7 +6,7 @@ import os
 async def main():
     async with dagger.Connection() as client:
         # Mount local Terraform directory
-        tf_dir = client.host().directory(".", exclude=[".git", "__pycache__"])
+        tf_dir = client.host().directory("AppAWSDeploy", exclude=[".git", "__pycache__"])
 
         # Create a container to run Terraform
         tf = (

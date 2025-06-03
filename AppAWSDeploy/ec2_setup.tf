@@ -125,14 +125,15 @@ resource "aws_instance" "nitric_runner" {
             --region us-east-1 \
             --query "Parameter.Value" \
             --output text)
+        export PULUMI_ACCESS_TOKEN
 
         echo "export PULUMI_ACCESS_TOKEN=$PULUMI_ACCESS_TOKEN" >> /home/ubuntu/.bashrc
         pulumi login
 
         # Clone GitHub Repo
         cd /home/ubuntu
-        git clone https://github.com/SethuGopalan/ServerlessFinApiDevOps.git
-        chown -R ubuntu:ubuntu ServerlessFinApiDevOps
+        git clone https://github.com/SethuGopalan/Serverless_FinApi_DevOps.git
+        chown -R ubuntu:ubuntu Serverless_FinApi_DevOps
 
         # Setup GitHub Actions Runner
         RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/v//')
@@ -149,9 +150,10 @@ resource "aws_instance" "nitric_runner" {
 
         # Configure and start GitHub Runner
         cd actions-runner
-        ./config.sh --url https://github.com/SethuGopalan/ServerlessFinApiDevOps --token $RUNNER_TOKEN --unattended
+        ./config.sh --url https://github.com/SethuGopalan/Serverless_FinApi_DevOps --token $RUNNER_TOKEN --unattended
         ./svc.sh install
         ./svc.sh start
+
 
 EOF
 }

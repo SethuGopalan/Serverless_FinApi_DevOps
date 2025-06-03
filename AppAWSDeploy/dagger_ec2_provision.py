@@ -1,10 +1,14 @@
+
 import dagger
 import os
 
+# Initialize the Dagger client
 async def main():
     async with dagger.Connection() as client:
+        # Mount local Terraform directory
         tf_dir = client.host().directory("AppAWSDeploy", exclude=[".git", "__pycache__"])
 
+        # Create a container to run Terraform
         tf = (
             client.container()
             .from_("hashicorp/terraform:1.5.7")
@@ -13,11 +17,10 @@ async def main():
             .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
             .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
             .with_env_variable("AWS_REGION", "us-east-1")
-            .with_env_variable("TF_VAR_VPC_ID", os.getenv("TF_VAR_VPC_ID"))
-            .with_env_variable("TF_VAR_SUBNET_ID", os.getenv("TF_VAR_SUBNET_ID"))
         )
 
-        await tf.with_exec(["terraform", "init"]).exit_code()
+        # Terraform init and apply
+        await tf.with_exec(["terraform","init"]).exit_code()
         await tf.with_exec(["terraform", "apply", "-auto-approve"]).exit_code()
 
 if __name__ == "__main__":

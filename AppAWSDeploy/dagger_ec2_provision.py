@@ -1,4 +1,3 @@
-
 import dagger
 import os
 
@@ -19,10 +18,17 @@ async def main():
             .with_env_variable("AWS_REGION", "us-east-1")
         )
 
-        # Terraform init and apply
-        await tf.with_exec(["terraform","init"]).exit_code()
-        await tf.with_exec(["terraform", "apply", "-auto-approve"]).exit_code()
+        # Terraform init (with upgrade to refresh providers)
+        await tf.with_exec(["terraform", "init", "-upgrade"]).exit_code()
+
+        # Terraform apply with required vars from GitHub secrets
+        await tf.with_exec([
+            "terraform", "apply", "-auto-approve",
+            "-var", f"vpc_id={os.getenv('TF_VAR_VPC_ID')}",
+            "-var", f"subnet_id={os.getenv('TF_VAR_SUBNET_ID')}"
+        ]).exit_code()
 
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+

@@ -1,3 +1,5 @@
 .nitric/
 .venv/
-nitric-spec.json
+nitric-spec.json".terraform/" 
+".terraform/" 
+.terraform/ 

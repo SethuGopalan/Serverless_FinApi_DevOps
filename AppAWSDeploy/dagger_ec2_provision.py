@@ -20,7 +20,7 @@ async def main():
         )
 
         # Terraform init and apply
-        await tf.with_exec(["init"]).exit_code()
+        await tf.with_exec(["terraform","init"]).exit_code()
         await tf.with_exec(["apply", "-auto-approve"]).exit_code()
 
 if __name__ == "__main__":

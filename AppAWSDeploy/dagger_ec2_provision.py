@@ -8,7 +8,7 @@ async def main():
 
         tf = (
             client.container()
-            .from_("hashicorp/terraform:1.12.1")
+            .from_("hashicorp/terraform:1.8.0")
             .with_mounted_directory("/app", tf_dir)
             .with_workdir("/app")
             .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
@@ -17,7 +17,8 @@ async def main():
         )
 
         # First: init (important to install plugins)
-        await tf.with_exec(["terraform", "init", "-upgrade"]).exit_code()
+        init_output=await tf.with_exec(["terraform", "init", "-upgrade"]).stdout()
+        print("Terraform Init Output:\n", init_output)
 
         # Then: apply with VPC/Subnet
         await tf.with_exec([
@@ -25,7 +26,8 @@ async def main():
             "-auto-approve",
             "-var", f"vpc_id={os.getenv('TF_VAR_VPC_ID')}",
             "-var", f"subnet_id={os.getenv('TF_VAR_SUBNET_ID')}"
-        ]).exit_code()
+        ]).stdout()
+        print("Terraform Apply Output:\n", apply_output)
 
 if __name__ == "__main__":
     asyncio.run(main())

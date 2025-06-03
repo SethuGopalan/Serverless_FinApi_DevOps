@@ -8,7 +8,7 @@ async def main():
 
         tf = (
             client.container()
-            .from_("hashicorp/terraform:1.5.7")
+            .from_("hashicorp/terraform:latest")
             .with_mounted_directory("/app", tf_dir)
             .with_workdir("/app")
             .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))

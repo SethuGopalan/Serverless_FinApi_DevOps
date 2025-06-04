@@ -28,5 +28,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           TF_VAR_VPC_ID: ${{ secrets.TF_VAR_VPC_ID }}
           TF_VAR_SUBNET_ID: ${{ secrets.TF_VAR_SUBNET_ID }}
+          TF_VAR_SSH_PUBLIC_KEY: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY }}
 
         run: python AppAWSDeploy/dagger_ec2_provision.py

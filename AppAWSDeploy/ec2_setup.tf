@@ -47,7 +47,7 @@ resource "aws_iam_instance_profile" "runner_profile" {
 
 # SSH Key Pair
 resource "aws_key_pair" "nitric_key" {
-  key_name = aws_key_pair.nitric_key.key_name
+  key_name = "Nitric_Ec2"
 
   public_key = var.ssh_public_key
 }

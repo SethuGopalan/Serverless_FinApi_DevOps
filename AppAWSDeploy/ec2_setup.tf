@@ -46,9 +46,9 @@ resource "aws_iam_instance_profile" "runner_profile" {
 }
 
 # SSH Key Pair
-resource "aws_key_pair" "runner_key" {
-  key_name   = "runner-key"
-  public_key = file("~/.ssh/id_rsa.pub")
+resource "aws_key_pair" "nitric_key" {
+  key_name   = "Nitric_Ec2"              # <- match this with your key name
+  public_key = var.ssh_public_key
 }
 
 # Security Group

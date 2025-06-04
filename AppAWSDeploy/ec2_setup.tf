@@ -75,9 +75,10 @@ resource "aws_security_group" "runner_sg" {
 
 # EC2 Instance
 resource "aws_instance" "runner_instance" {
-  ami                         = "ami-053b0d53c279acc90" # Ubuntu 22.04 LTS
-  instance_type               = "t2.micro"
-  key_name                    = aws_key_pair.runner_key.key_name
+  ami           = "ami-053b0d53c279acc90" # Ubuntu 22.04 LTS
+  instance_type = "t2.micro"
+  key_name      = aws_key_pair.nitric_key.key_name
+
   iam_instance_profile        = aws_iam_instance_profile.runner_profile.name
   associate_public_ip_address = true
   subnet_id                   = var.subnet_id

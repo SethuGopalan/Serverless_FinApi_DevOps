@@ -47,7 +47,8 @@ resource "aws_iam_instance_profile" "runner_profile" {
 
 # SSH Key Pair
 resource "aws_key_pair" "nitric_key" {
-  key_name   = "Nitric_Ec2"              # <- match this with your key name
+  key_name = aws_key_pair.nitric_key.key_name
+
   public_key = var.ssh_public_key
 }
 
@@ -100,7 +101,7 @@ resource "aws_instance" "runner_instance" {
               chown -R ubuntu:ubuntu Serverless_FinApi_DevOps
 
               RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/v//')
-              curl -LO https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz
+              curl -LO https://github.com/actions/runner/releases/download/v\${RUNNER_VERSION}/actions-runner-linux-x64-\${RUNNER_VERSION}.tar.gz
               mkdir actions-runner && tar xzf actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz -C actions-runner
 
               RUNNER_TOKEN=$(aws ssm get-parameter --name "/github/runner_token" --with-decryption --region us-east-1 --query "Parameter.Value" --output text)

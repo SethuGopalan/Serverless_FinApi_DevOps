@@ -103,14 +103,15 @@ resource "aws_instance" "runner_instance" {
 
               RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/v//')
 
-              'curl -LO https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz'
+              curl -LO https://github.com/actions/runner/releases/download/v\${RUNNER_VERSION}/actions-runner-linux-x64-\${RUNNER_VERSION}.tar.gz
 
-              mkdir actions-runner && tar xzf actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz -C actions-runner
+              mkdir actions-runner && tar xzf actions-runner-linux-x64-\${RUNNER_VERSION}.tar.gz -C actions-runner
 
               RUNNER_TOKEN=$(aws ssm get-parameter --name "/github/runner_token" --with-decryption --region us-east-1 --query "Parameter.Value" --output text)
               cd actions-runner
-              ./config.sh --url https://github.com/SethuGopalan/Serverless_FinApi_DevOps --token $RUNNER_TOKEN --unattended
+              ./config.sh --url https://github.com/SethuGopalan/Serverless_FinApi_DevOps --token \$RUNNER_TOKEN --unattended
               ./svc.sh install
               ./svc.sh start
-              EOF
+            EOF
+
 }

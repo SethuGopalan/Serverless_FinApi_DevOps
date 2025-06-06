@@ -1,4 +1,3 @@
-
 terraform {
   required_providers {
     aws = {
@@ -8,16 +7,16 @@ terraform {
   }
 }
 
-
 provider "aws" {
   region = "us-east-1"
 }
 
-# IAM Role for GitHub Actions EC2 Runner
+# Unique suffix for names
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
+# IAM Role for EC2 GitHub Actions Runner
 resource "aws_iam_role" "runner_role" {
   name = "GitHubRunnerRole-${random_id.suffix.hex}"
 
@@ -33,8 +32,7 @@ resource "aws_iam_role" "runner_role" {
   })
 }
 
-
-# Attach necessary policies
+# Attach required AWS policies
 resource "aws_iam_role_policy_attachment" "runner_policy" {
   for_each = toset([
     "AmazonEC2FullAccess",
@@ -45,22 +43,21 @@ resource "aws_iam_role_policy_attachment" "runner_policy" {
   policy_arn = "arn:aws:iam::aws:policy/${each.key}"
 }
 
-# IAM Instance Profile
+# Instance Profile for the role
 resource "aws_iam_instance_profile" "runner_profile" {
-  name = "GitHubRunnerProfile"
+  name = "GitHubRunnerProfile-${random_id.suffix.hex}"
   role = aws_iam_role.runner_role.name
 }
 
-# SSH Key Pair
+# EC2 SSH Key Pair with unique name
 resource "aws_key_pair" "nitric_key" {
-  key_name = "Nitric_Ec2"
-
+  key_name   = "Nitric_Ec2-${random_id.suffix.hex}"
   public_key = var.ssh_public_key
 }
 
-# Security Group
+# Security group
 resource "aws_security_group" "runner_sg" {
-  name        = "runner-sg"
+  name        = "runner-sg-${random_id.suffix.hex}"
   description = "Allow SSH"
   vpc_id      = var.vpc_id
 
@@ -79,12 +76,11 @@ resource "aws_security_group" "runner_sg" {
   }
 }
 
-# EC2 Instance
+# EC2 instance for runner
 resource "aws_instance" "runner_instance" {
-  ami           = "ami-053b0d53c279acc90" # Ubuntu 22.04 LTS
-  instance_type = "t2.micro"
-  key_name      = aws_key_pair.nitric_key.key_name
-
+  ami                         = "ami-053b0d53c279acc90" # Ubuntu 22.04 LTS
+  instance_type               = "t2.micro"
+  key_name                    = aws_key_pair.nitric_key.key_name
   iam_instance_profile        = aws_iam_instance_profile.runner_profile.name
   associate_public_ip_address = true
   subnet_id                   = var.subnet_id
@@ -107,16 +103,14 @@ resource "aws_instance" "runner_instance" {
               git clone https://github.com/SethuGopalan/Serverless_FinApi_DevOps.git
               chown -R ubuntu:ubuntu Serverless_FinApi_DevOps
 
-              RUNNER_VERSION=$$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/v//')
-              curl -LO https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz
-              mkdir actions-runner && tar xzf actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz -C actions-runner
+              RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/v//')
+              curl -LO https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz
+              mkdir actions-runner && tar xzf actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz -C actions-runner
 
               RUNNER_TOKEN=$(aws ssm get-parameter --name "/github/runner_token" --with-decryption --region us-east-1 --query "Parameter.Value" --output text)
               cd actions-runner
-              ./config.sh --url https://github.com/SethuGopalan/Serverless_FinApi_DevOps --token \\$RUNNER_TOKEN --unattended
+              ./config.sh --url https://github.com/SethuGopalan/Serverless_FinApi_DevOps --token $RUNNER_TOKEN --unattended
               ./svc.sh install
               ./svc.sh start
-          EOF
-
-
+              EOF
 }

@@ -14,8 +14,13 @@ provider "aws" {
 }
 
 # IAM Role for GitHub Actions EC2 Runner
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
 resource "aws_iam_role" "runner_role" {
-  name = "GitHubRunnerRole"
+  name = "GitHubRunnerRole-${random_id.suffix.hex}"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [{
@@ -27,6 +32,7 @@ resource "aws_iam_role" "runner_role" {
     }]
   })
 }
+
 
 # Attach necessary policies
 resource "aws_iam_role_policy_attachment" "runner_policy" {

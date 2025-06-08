@@ -5,14 +5,14 @@ import json
 import re
 
 async def main():
-    async with dagger.Connection() as client:
+    async with dagger.Connection(timeout=600) as client:
         print("Deploying Nitric app to AWS...")
 
-        # Mount the correct directory for your FastAPI Nitric app
+        # Mount the services directory containing your FastAPI Nitric app
         nitric_dir = client.host().directory("AppAWSDeploy/services", exclude=["__pycache__", ".git"])
 
-        # Step 1: Retrieve Pulumi token from AWS SSM
-        pulumi_token_raw = (
+        # Retrieve Pulumi token from AWS SSM Parameter Store
+        pulumi_token = (
             await client.container()
             .from_("amazonlinux")
             .with_exec(["yum", "-y", "install", "awscli"])
@@ -26,15 +26,16 @@ async def main():
             ])
             .stdout()
         )
-        pulumi_token = json.loads(pulumi_token_raw)["Parameter"]["Value"]
+        pulumi_token = json.loads(pulumi_token)["Parameter"]["Value"]
 
-        # Step 2: Deploy using Nitric CLI inside container
+        # Prepare container and install Nitric CLI
         container = (
             client.container()
             .from_("python:3.12-slim")
             .with_exec(["apt", "update", "-y"])
             .with_exec(["apt", "install", "-y", "curl", "unzip", "git"])
             .with_exec(["sh", "-c", "curl -fsSL https://cli.nitric.io/install.sh | sh"])
+            .with_env_variable("PATH", "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
             .with_exec(["pip", "install", "--no-cache-dir", "pulumi", "boto3", "requests", "pydantic", "fastapi"])
             .with_mounted_directory("/app", nitric_dir)
             .with_workdir("/app")
@@ -44,17 +45,15 @@ async def main():
             .with_exec(["nitric", "deploy", "--stack", "dev"])
         )
 
-        # Step 3: Capture and display output with API link
+        # Run the deployment
         result = await container.stdout()
         print(result)
+        print("✅ Nitric app deployed successfully.")
 
-        match = re.search(r"https://[a-zA-Z0-9.-]+\.amazonaws\.com/[^\s]*", result)
-        if match:
-            print(f"\n Your API is live at: {match.group(0)}")
-        else:
-            print("\nDeployment finished, but API URL not found in output.")
-
-        print("Nitric app deployment process completed.")
+        # Try to extract the deployed URL
+        urls = re.findall(r"https://[a-zA-Z0-9.-]+", result)
+        if urls:
+            print("📡 Deployed API URL:", urls[0])
 
 if __name__ == "__main__":
     asyncio.run(main())

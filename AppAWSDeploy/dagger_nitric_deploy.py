@@ -2,17 +2,16 @@ import dagger
 import asyncio
 import os
 import json
-import re
 
 async def main():
-    async with dagger.Connection(timeout=600) as client:
+    async with dagger.Connection() as client:
         print("Deploying Nitric app to AWS...")
 
-        # Mount the services directory containing your FastAPI Nitric app
+        # Mount source directory
         nitric_dir = client.host().directory("AppAWSDeploy/services", exclude=["__pycache__", ".git"])
 
-        # Retrieve Pulumi token from AWS SSM Parameter Store
-        pulumi_token = (
+        # Pull Pulumi token from AWS SSM
+        pulumi_token_json = (
             await client.container()
             .from_("amazonlinux")
             .with_exec(["yum", "-y", "install", "awscli"])
@@ -26,9 +25,9 @@ async def main():
             ])
             .stdout()
         )
-        pulumi_token = json.loads(pulumi_token)["Parameter"]["Value"]
+        pulumi_token = json.loads(pulumi_token_json)["Parameter"]["Value"]
 
-        # Prepare container and install Nitric CLI
+        # Setup and deploy with Nitric
         container = (
             client.container()
             .from_("python:3.12-slim")
@@ -45,15 +44,9 @@ async def main():
             .with_exec(["nitric", "deploy", "--stack", "dev"])
         )
 
-        # Run the deployment
         result = await container.stdout()
         print(result)
         print("Nitric app deployed successfully.")
-
-        # Try to extract the deployed URL
-        urls = re.findall(r"https://[a-zA-Z0-9.-]+", result)
-        if urls:
-            print("Deployed API URL:", urls[0])
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,5 +1,6 @@
 import dagger
 import asyncio
+import os  # ✅ Required for accessing environment variables
 
 async def main():
     async with dagger.Connection() as client:

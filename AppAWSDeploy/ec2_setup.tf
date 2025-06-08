@@ -104,8 +104,8 @@ resource "aws_instance" "runner_instance" {
               chown -R ubuntu:ubuntu Serverless_FinApi_DevOps
 
               RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/v//')
-              curl -LO https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz
-              mkdir actions-runner && tar xzf actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz -C actions-runner
+              curl -LO https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz
+              mkdir actions-runner && tar xzf actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz -C actions-runner
 
               RUNNER_TOKEN=$(aws ssm get-parameter --name "/github/runner_token" --with-decryption --region us-east-1 --query "Parameter.Value" --output text)
               cd actions-runner

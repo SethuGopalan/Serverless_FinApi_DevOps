@@ -48,12 +48,12 @@ async def main():
         # Run the deployment
         result = await container.stdout()
         print(result)
-        print("✅ Nitric app deployed successfully.")
+        print("Nitric app deployed successfully.")
 
         # Try to extract the deployed URL
         urls = re.findall(r"https://[a-zA-Z0-9.-]+", result)
         if urls:
-            print("📡 Deployed API URL:", urls[0])
+            print("Deployed API URL:", urls[0])
 
 if __name__ == "__main__":
     asyncio.run(main())

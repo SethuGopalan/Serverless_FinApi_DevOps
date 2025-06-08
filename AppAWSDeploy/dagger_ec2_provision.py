@@ -16,17 +16,20 @@ async def main():
             .with_env_variable("AWS_REGION", "us-east-1")
         )
 
-        terraform_command = (
-            "terraform init -upgrade && "
-            "terraform apply -auto-approve "
-            f"-var='vpc_id={os.getenv('TF_VAR_VPC_ID')}' "
-            f"-var='subnet_id={os.getenv('TF_VAR_SUBNET_ID')}' "
-            f"-var='ssh_public_key={os.getenv('TF_VAR_SSH_PUBLIC_KEY')}'"
-        )
+        # Run terraform init
+        print("Running terraform init...")
+        await tf_container.with_exec(["terraform", "init", "-upgrade"]).exit_code()
 
-        print("Running terraform init and apply...")
-        result = await tf_container.with_exec(["sh", "-c", terraform_command]).stdout()
-        print(result)
+        # Run terraform apply with -var args
+        print("Running terraform apply...")
+        apply_result = await tf_container.with_exec([
+            "terraform", "apply", "-auto-approve",
+            "-var", f"vpc_id={os.getenv('TF_VAR_VPC_ID')}",
+            "-var", f"subnet_id={os.getenv('TF_VAR_SUBNET_ID')}",
+            "-var", f"ssh_public_key={os.getenv('TF_VAR_SSH_PUBLIC_KEY')}"
+        ]).stdout()
+
+        print(apply_result)
 
 if __name__ == "__main__":
     asyncio.run(main())

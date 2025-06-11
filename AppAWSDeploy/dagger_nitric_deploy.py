@@ -77,10 +77,10 @@ async def main():
             print("Nitric CLI Version:")
             print(nitric_version_output)
 
-            # Run Nitric doctor to check environment health
-            nitric_doctor_output = await container.with_exec(["nitric", "doctor"]).stdout()
-            print("\nNitric Doctor Output:")
-            print(nitric_doctor_output)
+            # Removed 'nitric doctor' call as it's not supported by this Nitric CLI version.
+            # nitric_doctor_output = await container.with_exec(["nitric", "doctor"]).stdout()
+            # print("\nNitric Doctor Output:")
+            # print(nitric_doctor_output)
 
             # Execute the Nitric deployment command.
             # 'nitric up' typically finds the 'nitric.yaml' in the working directory

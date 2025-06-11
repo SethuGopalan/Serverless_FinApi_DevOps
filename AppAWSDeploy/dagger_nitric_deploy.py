@@ -30,13 +30,13 @@ async def main():
         # Use your custom image with Nitric CLI already installed
         container = (
             client.container()
-            .from_("7797/nitric-cli:v1")  # ✅ Use your Docker image
+            .from_("7797/nitric-cli:v1")  # Use your Docker image
             .with_mounted_directory("/app", nitric_dir)
             .with_workdir("/app")
             .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
             .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
             .with_env_variable("PULUMI_ACCESS_TOKEN", pulumi_token)
-            .with_exec(["nitric", "up", "--stack", "dev"])
+            .with_exec(["nitric", "up", "--stack", "aws"])
         )
 
         result = await container.stdout()

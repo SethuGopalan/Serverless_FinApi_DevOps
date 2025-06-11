@@ -63,6 +63,9 @@ async def main():
             .from_("7797/nitric-cli:v1") # Use your pre-built Docker image with Nitric CLI
             .with_mounted_directory("/app", nitric_dir) # Mount your Nitric project code to /app
             .with_workdir("/app") # Set working directory inside the container to /app
+            # Mount the Docker socket from the host into the container.
+            # This allows the Nitric CLI inside the container to build and interact with Docker images.
+            .with_unix_socket("/var/run/docker.sock", client.host().unix_socket("/var/run/docker.sock"))
             # Pass AWS credentials and Pulumi token to the deployment container
             .with_env_variable("AWS_ACCESS_KEY_ID", aws_access_key_id)
             .with_env_variable("AWS_SECRET_ACCESS_KEY", aws_secret_access_key)
@@ -76,11 +79,6 @@ async def main():
             nitric_version_output = await container.with_exec(["nitric", "version"]).stdout()
             print("Nitric CLI Version:")
             print(nitric_version_output)
-
-            # Removed 'nitric doctor' call as it's not supported by this Nitric CLI version.
-            # nitric_doctor_output = await container.with_exec(["nitric", "doctor"]).stdout()
-            # print("\nNitric Doctor Output:")
-            # print(nitric_doctor_output)
 
             # Execute the Nitric deployment command.
             # 'nitric up' typically finds the 'nitric.yaml' in the working directory

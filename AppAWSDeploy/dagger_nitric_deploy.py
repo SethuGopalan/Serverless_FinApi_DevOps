@@ -36,7 +36,7 @@ async def main():
             .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
             .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
             .with_env_variable("PULUMI_ACCESS_TOKEN", pulumi_token)
-            .with_exec(["nitric", "deploy", "--stack", "dev"])
+            .with_exec(["nitric", "up", "--stack", "dev"])
         )
 
         result = await container.stdout()

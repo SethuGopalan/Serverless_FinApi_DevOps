@@ -27,23 +27,17 @@ async def main():
         )
         pulumi_token = json.loads(pulumi_token_json)["Parameter"]["Value"]
 
-        # Setup and deploy with Nitric
+        # Use your custom image with Nitric CLI already installed
         container = (
-                client.container()
-                .from_("python:3.12-slim")
-                .with_exec(["apt", "update", "-y"])
-                .with_exec(["apt", "install", "-y", "curl", "unzip", "git", "bash"])
-                .with_exec(["curl", "-sSL", "https://cli.nitric.io/install.sh", "-o", "install.sh"])
-                .with_exec(["bash", "install.sh"])
-                .with_env_variable("PATH", "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-                .with_exec(["pip", "install", "--no-cache-dir", "pulumi", "boto3", "requests", "pydantic", "fastapi"])
-                .with_mounted_directory("/app", nitric_dir)
-                .with_workdir("/app")
-                .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
-                .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
-                .with_env_variable("PULUMI_ACCESS_TOKEN", pulumi_token)
-                .with_exec(["nitric", "deploy", "--stack", "dev"])
-)
+            client.container()
+            .from_("7797/nitric-cli:v1")  # ✅ Use your Docker image
+            .with_mounted_directory("/app", nitric_dir)
+            .with_workdir("/app")
+            .with_env_variable("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
+            .with_env_variable("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
+            .with_env_variable("PULUMI_ACCESS_TOKEN", pulumi_token)
+            .with_exec(["nitric", "deploy", "--stack", "dev"])
+        )
 
         result = await container.stdout()
         print(result)

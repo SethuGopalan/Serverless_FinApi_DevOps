@@ -2,35 +2,50 @@ import dagger
 import os
 import asyncio
 import base64
-# from pathlib import Path # Not strictly needed anymore for local file ops
 
-# Directly get environment variables
 EC2_IP = os.environ.get("EC2_PUBLIC_IP")
 EC2_SSH_USER = os.environ.get("EC2_SSH_USER")
 EC2_SSH_KEY_B64 = os.environ.get("EC2_SSH_KEY") # This is now the correct variable name
 
-# No need for EC2_SSH_PRIVATE_KEY, EC2_SSH_KEY_PATH, or the prepare_ssh_key() function
-# as we'll handle the key directly within Dagger.
-
 # Commands to install tools on the EC2 instance
-def setup_commands(ssh_user): # Pass user for the usermod command
-    return [
+def setup_commands(ssh_user):
+    commands = [
         "sudo apt update",
         "sudo apt install -y python3-pip curl unzip git",
-        # Nitric install often adds to PATH in .bashrc/.profile, which SSH non-login shells don't source.
-        # So, we'll try to find common bin directories or just rely on user's setup after this.
-        # For a robust setup, you might use 'sudo install' to put binaries in /usr/local/bin.
+        # Nitric CLI - often added to ~/.nitric/bin. We'll rely on it being added to PATH
+        # for a user, or source .profile for actual runner.
         "curl -fsSL https://nitric.io/install | bash",
+        # Pulumi CLI - often added to ~/.pulumi/bin
         "curl -fsSL https://get.pulumi.com | sh",
-        "curl -L https://dl.dagger.io/dagger/install.sh | sh",
-        "sudo mv dagger /usr/local/bin/dagger",
-        "pip3 install dagger-io boto3", # This installs on EC2 for the *runner agent*, not within the Dagger container.
-        "sudo apt update && sudo apt install -y docker.io", # More robust Docker install needed here.
+        # Python dependencies for the runner (if it runs locally)
+        "pip3 install dagger-io boto3", # This installs for the EC2 user
+        
+        # --- FIX FOR DAGGER INSTALLATION ---
+        # 1. Create a temporary directory or use /tmp
+        # 2. Download the dagger binary directly to a known location
+        # 3. Move it from that known location to /usr/local/bin
+        "mkdir -p /tmp/dagger_install",
+        "curl -L https://dl.dagger.io/dagger/releases/latest/dagger-linux-amd64 > /tmp/dagger_install/dagger", # Download directly
+        "chmod +x /tmp/dagger_install/dagger", # Make it executable
+        "sudo mv /tmp/dagger_install/dagger /usr/local/bin/dagger", # Move from known path
+        "rmdir /tmp/dagger_install", # Clean up temp directory
+        # --- END FIX ---
+
+        # Docker installation - more robust version
+        "sudo apt update",
+        "sudo apt install -y ca-certificates curl gnupg",
+        "sudo install -m 0755 -d /etc/apt/keyrings",
+        "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg",
+        "sudo chmod a+r /etc/apt/keyrings/docker.gpg",
+        "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null",
+        "sudo apt update",
+        "sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin",
         "sudo systemctl start docker",
-        "sudo systemctl enable docker", # Ensure Docker starts on boot
+        "sudo systemctl enable docker",
         f"sudo usermod -aG docker {ssh_user}",
         "echo 'User added to docker group. Re-login or restart GitHub Actions runner agent on EC2.'"
     ]
+    return commands
 
 async def main():
     if not EC2_IP:
@@ -42,7 +57,7 @@ async def main():
     if not EC2_SSH_KEY_B64:
         raise EnvironmentError("EC2_SSH_KEY environment variable is not set. Please ensure it's provided as a GitHub Secret.")
 
-    print(" Preparing SSH key for Dagger container...")
+    print("🔑 Preparing SSH key for Dagger container...")
     
     # Decode the base64 SSH key
     try:
@@ -51,44 +66,34 @@ async def main():
         print(f"Error decoding EC2_SSH_KEY: {e}")
         return
 
-    print(" Connecting to EC2 and preparing environment...")
+    print("🔗 Connecting to EC2 and preparing environment...")
 
     async with dagger.Connection() as client:
-        # Create a container with SSH client installed.
-        # We will directly add the private key as a file within this container.
-        # Alpine/git has ssh-client and is lightweight.
         ssh_container = (
             client.container()
-            .from_("alpine/git:latest") # Use a small image with git and ssh client
-            .with_exec(["apk", "add", "--no-cache", "openssh-client"]) # Ensure ssh client is installed
-            # Create .ssh directory and add the key with correct permissions
+            .from_("ubuntu:22.04") # Using Ubuntu as it's common for runners
+            .with_exec(["apt", "update"])
+            .with_exec(["apt", "install", "-y", "openssh-client"])
             .with_exec(["mkdir", "-p", "/root/.ssh"])
-            # Add the key directly as a new file in the container
             .with_new_file("/root/.ssh/id_rsa", contents=ec2_ssh_key_contents, permissions=0o400)
-            # Add known_hosts to avoid host key checking prompts (only if trusted)
-            # Alternatively, leave StrictHostKeyChecking=no in ssh command
-            # .with_exec(["ssh-keyscan", "-H", EC2_IP, ">>", "/root/.ssh/known_hosts"]) # This requires shell in container, use withShell
-            # Or better, just ensure StrictHostKeyChecking=no is in your ssh command as you have it.
         )
 
-        # Iterate through setup commands and execute them via SSH
-        for cmd in setup_commands(EC2_SSH_USER): # Pass user here
+        for cmd in setup_commands(EC2_SSH_USER):
             print(f"  Running on EC2: {cmd}")
-            # The SSH command needs to be executed within the ssh_container
             ssh_exec_args = [
                 "ssh", "-o", "StrictHostKeyChecking=no", # Still useful for initial connection
                 "-i", "/root/.ssh/id_rsa", # This path is now relative to the Dagger container!
                 f"{EC2_SSH_USER}@{EC2_IP}",
                 cmd
             ]
-            ssh_container = ssh_container.with_exec(ssh_exec_args) # Chain the commands
+            ssh_container = ssh_container.with_exec(ssh_exec_args)
 
         # After all setup commands, execute a final verification command
         print("\nVerifying Docker installation on EC2...")
         verify_command = [
             "ssh", "-i", "/root/.ssh/id_rsa",
             f"{EC2_SSH_USER}@{EC2_IP}",
-            "docker --version" # Or 'docker info' for more detail
+            "docker --version"
         ]
 
         try:
@@ -99,7 +104,7 @@ async def main():
             print(f" Error during EC2 setup or verification: {e}")
             print(f"Stderr: {e.stderr}")
             print(f"Stdout: {e.stdout}")
-            raise # Re-raise to fail the GitHub Actions step
+            raise
         except Exception as e:
             print(f" An unexpected error occurred: {e}")
             raise

@@ -8,31 +8,45 @@ on:
 
 jobs:
   ec2-setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # This is the GitHub-hosted runner where Dagger will run its engine
 
     env:
       EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
       EC2_SSH_USER: ${{ secrets.EC2_SSH_USER }}
-      # CHANGE THIS LINE: Use EC2_SSH_KEY as expected by the Python script
-      EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }} # Name in workflow matches name in Python script
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }} # Corrected secret name for Python script
+      DAGGER_TIMEOUT: 900 # Increased Dagger engine timeout to 15 minutes
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # Remove the local SSH key setup from the workflow file.
-      # Dagger will handle providing the key to its containers.
-      # - name: Set up SSH private key from base64
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     echo "${EC2_SSH_PRIVATE_KEY}" | base64 -d > ~/.ssh/id_rsa
-      #     chmod 600 ~/.ssh/id_rsa
-      #     ssh-keyscan -H "$EC2_PUBLIC_IP" >> ~/.ssh/known_hosts
+      - name: Set up Python
+        uses: actions/setup-python@v5 # Good practice to explicitly set up Python
+        with:
+          python-version: "3.x" # Or a specific version like '3.10'
 
       - name: Install Python dependencies
         run: pip install dagger-io
 
+      # --- IMPORTANT DIAGNOSTIC STEPS FOR DAGGER TIMEOUT ---
+      # These steps check the health of Docker on the GitHub Actions runner itself,
+      # as Dagger relies on it to start its engine.
+      - name: Check Docker Daemon Status on GitHub Actions Runner
+        run: |
+          echo "--- Docker Info ---"
+          docker info || true # '|| true' prevents step from failing if command has non-zero exit
+          echo "--- Running Docker Containers ---"
+          docker ps -a || true
+          echo "--- Docker Systemctl Status (Requires sudo) ---"
+          sudo systemctl status docker || true
+          echo "--- Docker Logs (tail) ---"
+          # Get Docker daemon logs. Path might vary slightly.
+          sudo journalctl -u docker.service --since "5 minutes ago" || true
+        # Adding 'continue-on-error: true' allows the workflow to proceed for inspection
+        # even if these diagnostic commands themselves have minor issues or empty output.
+        continue-on-error: true
+      # --- END DIAGNOSTIC STEPS ---
+
       - name: Run EC2 setup pipeline
         run: |
           python AppAWSDeploy/dagger_EC2_prereq_setup.py
-    #  

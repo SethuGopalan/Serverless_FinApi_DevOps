@@ -1,103 +1,59 @@
 import dagger
 import os
 import asyncio
-import json
+import boto3
+import base64
+
+async def get_pulumi_token():
+    """Fetch Pulumi access token from AWS SSM Parameter Store"""
+    ssm = boto3.client('ssm', region_name="us-east-1")
+    response = ssm.get_parameter(Name="/Pulumi/AccessToken", WithDecryption=True)
+    return response['Parameter']['Value']
 
 async def main():
-    # Ensure necessary environment variables are available from the GitHub Actions runner.
-    # AWS credentials are for authenticating with AWS.
-    aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
-    aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-    aws_default_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1") # Default to us-east-1 if not set
+    print("Deploying Nitric app to AWS...")
 
-    if not aws_access_key_id or not aws_secret_access_key:
-        print("Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set as environment variables.")
-        return
+    # Fetch Pulumi token from SSM
+    print("Fetching Pulumi Access Token from AWS SSM...")
+    pulumi_access_token = await get_pulumi_token()
+    print("Pulumi Access Token fetched successfully.")
 
-    async with dagger.Connection() as client:
-        print("Deploying Nitric app to AWS...")
+    # Start Dagger connection
+    async with dagger.Connection(timeout=600) as client:
+        src = client.host().directory(".")
 
-        # Mount source directory for your Nitric project
-        # This path should reflect where your nitric.yaml and source code live within your repo.
-        nitric_dir = client.host().directory("AppAWSDeploy/services", exclude=["__pycache__", ".git"])
+        # Base Nitric image (with Python SDK)
+        nitric_image = "docker.io/nitrictech/nitric:1.61.0-python"
 
-        # Pull Pulumi token from AWS SSM using a temporary container.
-        # This container needs AWS CLI installed and AWS credentials to access SSM.
-        print("Fetching Pulumi Access Token from AWS SSM...")
-        try:
-            pulumi_token_json = (
-                await client.container()
-                .from_("amazonlinux:2023") # Use a lightweight Linux image with AWS CLI support
-                .with_exec(["dnf", "-y", "install", "awscli"]) # Install AWS CLI using dnf for Amazon Linux 2023
-                .with_env_variable("AWS_ACCESS_KEY_ID", aws_access_key_id)
-                .with_env_variable("AWS_SECRET_ACCESS_KEY", aws_secret_access_key)
-                .with_env_variable("AWS_DEFAULT_REGION", aws_default_region) # Ensure region is set for SSM call
-                .with_exec([
-                    "aws", "ssm", "get-parameter",
-                    "--name", "/pulumi/access_token",
-                    "--with-decryption",
-                    "--region", "us-east-1" # Hardcoding region for SSM for now, can be made dynamic
-                ])
-                .stdout()
-            )
-            pulumi_token = json.loads(pulumi_token_json)["Parameter"]["Value"]
-            print("Pulumi Access Token fetched successfully.")
-        except dagger.ExecError as e:
-            print(f"Error fetching Pulumi token from SSM: {e}")
-            print(f"Stderr: {e.stderr}")
-            print(f"Stdout: {e.stdout}")
-            raise # Re-raise to stop execution if token can't be fetched
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON from SSM response: {e}")
-            print(f"SSM Raw Output: {pulumi_token_json}")
-            raise
-        except KeyError as e:
-            print(f"Key missing in SSM response (expected 'Parameter' or 'Value'): {e}")
-            print(f"SSM Raw Output: {pulumi_token_json}")
-            raise
-
-        # Use your custom image with Nitric CLI already installed
-        # This container will perform the actual Nitric deployment.
+        # Mount source code and Docker socket
         container = (
             client.container()
-            .from_("7797/nitric-cli:v1") # Use your pre-built Docker image with Nitric CLI
-            .with_mounted_directory("/app", nitric_dir) # Mount your Nitric project code to /app
-            .with_workdir("/app") # Set working directory inside the container to /app
-            # Mount the Docker socket from the host into the container.
-            # This allows the Nitric CLI inside the container to build and interact with Docker images.
+            .from_(nitric_image)
+            .with_mounted_directory("/src", src)
+            .with_workdir("/src")
             .with_unix_socket("/var/run/docker.sock", client.host().unix_socket("/var/run/docker.sock"))
-            # Pass AWS credentials and Pulumi token to the deployment container
-            .with_env_variable("AWS_ACCESS_KEY_ID", aws_access_key_id)
-            .with_env_variable("AWS_SECRET_ACCESS_KEY", aws_secret_access_key)
-            .with_env_variable("AWS_DEFAULT_REGION", aws_default_region)
-            .with_env_variable("PULUMI_ACCESS_TOKEN", pulumi_token)
+            .with_env_variable("AWS_ACCESS_KEY_ID", os.environ["AWS_ACCESS_KEY_ID"])
+            .with_env_variable("AWS_SECRET_ACCESS_KEY", os.environ["AWS_SECRET_ACCESS_KEY"])
+            .with_env_variable("AWS_REGION", os.environ.get("AWS_REGION", "us-east-1"))
+            .with_env_variable("PULUMI_ACCESS_TOKEN", pulumi_access_token)
         )
 
         print("Running Nitric CLI diagnostics in custom image...")
+        version_output = await container.with_exec(["nitric", "version"]).stdout()
+        print(f"Nitric CLI Version:\n{version_output}")
+
+        print("\nAttempting Nitric deployment to AWS (region: us-east-1)...")
         try:
-            # Get Nitric CLI version for debugging
-            nitric_version_output = await container.with_exec(["nitric", "version"]).stdout()
-            print("Nitric CLI Version:")
-            print(nitric_version_output)
-
-            # Execute the Nitric deployment command.
-            # 'nitric up' typically finds the 'nitric.yaml' in the working directory
-            # and infers the cloud provider from its configuration.
-            print(f"\nAttempting Nitric deployment to AWS (region: {aws_default_region})...")
-            # If your nitric.yaml explicitly defines the provider (e.g., provider: aws),
-            # then 'nitric up' without --stack should work.
             result = await container.with_exec(["nitric", "up"]).stdout()
-            print("Nitric deployment successful:")
+            print(" Nitric deployment successful!")
             print(result)
-
         except dagger.ExecError as e:
-            print(f"Nitric operation failed: {e}")
-            print(f"Stderr: {e.stderr}")
+            print("Nitric operation failed.")
             print(f"Stdout: {e.stdout}")
-            # Re-raise the exception to propagate the failure
+            print(f"Stderr: {e.stderr}")
             raise
         except Exception as e:
-            print(f"An unexpected error occurred during Nitric deployment: {e}")
+            print("Unexpected error during Nitric deployment.")
             raise
         # print
 

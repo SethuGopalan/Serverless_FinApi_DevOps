@@ -1,0 +1,37 @@
+name: Setup EC2 for Nitric Deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  ec2-setup:
+    runs-on: ubuntu-latest
+
+    env:
+      EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+      EC2_SSH_USER: ${{ secrets.EC2_SSH_USER }}
+      # CHANGE THIS LINE: Use EC2_SSH_KEY as expected by the Python script
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }} # Name in workflow matches name in Python script
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # Remove the local SSH key setup from the workflow file.
+      # Dagger will handle providing the key to its containers.
+      # - name: Set up SSH private key from base64
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     echo "${EC2_SSH_PRIVATE_KEY}" | base64 -d > ~/.ssh/id_rsa
+      #     chmod 600 ~/.ssh/id_rsa
+      #     ssh-keyscan -H "$EC2_PUBLIC_IP" >> ~/.ssh/known_hosts
+
+      - name: Install Python dependencies
+        run: pip install dagger-io
+
+      - name: Run EC2 setup pipeline
+        run: |
+          python AppAWSDeploy/dagger_EC2_prereq_setup.py

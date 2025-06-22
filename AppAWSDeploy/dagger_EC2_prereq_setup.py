@@ -5,7 +5,7 @@ import base64
 from pathlib import Path
 
 EC2_IP = os.environ.get("EC2_PUBLIC_IP")
-EC2_SSH_USER = os.environ.get("EC2_SSH_USER", "ubuntu")
+EC2_SSH_KEY = os.environ.get("EC2_SSH_PRIVATE_KEY")
 EC2_SSH_KEY_B64 = os.environ.get("EC2_SSH_KEY")  # This is the base64-encoded key
 
 # Path where the decoded key will be stored

@@ -1,10 +1,29 @@
 import dagger
 import os
 import asyncio
+import base64
+from pathlib import Path
 
-EC2_IP = os.environ.get("EC2_PUBLIC_IP")  # You must export this in GitHub Actions or local env
+EC2_IP = os.environ.get("EC2_PUBLIC_IP")
 EC2_SSH_USER = os.environ.get("EC2_SSH_USER", "ubuntu")
-EC2_SSH_KEY_PATH = os.environ.get("EC2_SSH_KEY_PATH", "~/.ssh/id_rsa")
+EC2_SSH_KEY_B64 = os.environ.get("EC2_SSH_KEY")  # This is the base64-encoded key
+
+# Path where the decoded key will be stored
+EC2_SSH_KEY_PATH = str(Path.home() / ".ssh" / "id_rsa")
+
+# Decode the base64 SSH key and save it locally
+def prepare_ssh_key():
+    if not EC2_SSH_KEY_B64:
+        raise EnvironmentError("EC2_SSH_KEY environment variable is not set.")
+    
+    ssh_dir = Path.home() / ".ssh"
+    ssh_dir.mkdir(mode=0o700, exist_ok=True)
+
+    key_path = ssh_dir / "id_rsa"
+    with open(key_path, "w") as key_file:
+        key_file.write(base64.b64decode(EC2_SSH_KEY_B64).decode("utf-8"))
+    os.chmod(key_path, 0o600)
+    return str(key_path)
 
 # Commands to install tools on the EC2 instance
 def setup_commands():
@@ -26,10 +45,13 @@ async def main():
         print(" EC2_PUBLIC_IP is not set.")
         return
 
-    print(" Connecting to EC2 and preparing environment...")
+    print("🔑 Preparing SSH key...")
+    prepare_ssh_key()
+
+    print("🔗 Connecting to EC2 and preparing environment...")
 
     async with dagger.Connection() as client:
-        ssh_dir = client.host().directory(".")
+        ssh_dir = client.host().directory(".")  # Host bind mount
 
         ec2 = (
             client.container()
@@ -39,21 +61,20 @@ async def main():
             .with_exec(["apt", "install", "-y", "openssh-client"])
         )
 
-        # Run setup commands via SSH
         for cmd in setup_commands():
-            print(f" Running on EC2: {cmd}")
+            print(f"  Running on EC2: {cmd}")
             ssh_command = [
-                "ssh",
-                "-o", "StrictHostKeyChecking=no",
+                "ssh", "-o", "StrictHostKeyChecking=no",
                 "-i", EC2_SSH_KEY_PATH,
                 f"{EC2_SSH_USER}@{EC2_IP}",
                 cmd
             ]
             ec2 = ec2.with_exec(ssh_command)
 
-        # Show Docker version to confirm success
         result = await ec2.with_exec([
-            "ssh", "-i", EC2_SSH_KEY_PATH, f"{EC2_SSH_USER}@{EC2_IP}", "docker --version"
+            "ssh", "-i", EC2_SSH_KEY_PATH,
+            f"{EC2_SSH_USER}@{EC2_IP}",
+            "docker --version"
         ]).stdout()
 
         print(" EC2 Setup complete. Docker installed:")

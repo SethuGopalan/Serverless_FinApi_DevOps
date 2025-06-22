@@ -21,17 +21,21 @@ def setup_commands(ssh_user):
         "sudo mv /tmp/dagger_install/dagger /usr/local/bin/dagger",
         "rmdir /tmp/dagger_install",
         
-        # --- FIX FOR DOCKER GPG ERROR ---
+        # --- FIX FOR DOCKER GPG ERROR (Attempt 2: Modern approach) ---
         "sudo apt update",
-        "sudo apt install -y ca-certificates curl gnupg",
-        "sudo install -m 0755 -d /etc/apt/keyrings",
+        "sudo apt install -y ca-certificates curl gnupg", # gnupg is still useful for general crypto
+        "sudo install -m 0755 -d /etc/apt/keyrings", # Ensure directory exists
         
-        # The problematic command, now fixed:
-        # Wrap in sudo sh -c and set DEBIAN_FRONTEND=noninteractive
-        "sudo DEBIAN_FRONTEND=noninteractive sh -c \"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg\"",
+        # Download the GPG key directly and place it using tee.
+        # This avoids the explicit gpg --dearmor command which can cause TTY issues.
+        # The 'signed-by' option in sources.list can handle the armored key directly.
+        "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.gpg > /dev/null",
         
-        "sudo chmod a+r /etc/apt/keyrings/docker.gpg",
+        "sudo chmod a+r /etc/apt/keyrings/docker.gpg", # Set correct permissions
+        
+        # Now, the sources.list entry referencing the key:
         "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null",
+        
         "sudo apt update",
         "sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin",
         "sudo systemctl start docker",
@@ -90,7 +94,7 @@ async def main():
 
         try:
             result = await ssh_container.with_exec(verify_command).stdout()
-            print(" EC2 Setup complete. Docker installed and verified:")
+            print("EC2 Setup complete. Docker installed and verified:")
             print(result)
         except dagger.ExecError as e:
             print(f"Error during EC2 setup or verification: {e}")

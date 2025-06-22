@@ -12,7 +12,7 @@ jobs:
     env:
       EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }} #  Public IP of your EC2 instance (stored securely in GitHub Secrets)
       EC2_SSH_USER: ${{ secrets.EC2_SSH_USER }} #  SSH username (e.g., ubuntu, ec2-user) stored in Secrets
-      EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }} #  Private SSH key to access EC2 stored as a GitHub secret
+      EC2_SSH_KEY: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY }} #  Private SSH key to access EC2 stored as a GitHub secret
 
     steps:
       - name: Checkout repo
@@ -21,7 +21,7 @@ jobs:
       - name: Set up SSH key from base64
         run: |
           mkdir -p ~/.ssh
-          echo "${EC2_SSH_PRIVATE_KEY}" | base64 -d > ~/.ssh/id_rsa
+          echo "${TF_VAR_SSH_PUBLIC_KEY}" | base64 -d > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "$EC2_PUBLIC_IP" >> ~/.ssh/known_hosts
 

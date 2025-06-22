@@ -30,4 +30,4 @@ jobs:
 
       - name: Run EC2 setup pipeline
         run: |
-          python AppAWSDeploy/ec2_setup_pipeline.py   #  Executes your custom EC2 setup script written in Python (using Dagger)
+          python AppAWSDeploy/dagger_EC2_prereq_setup.py   #  Executes your custom EC2 setup script written in Python (using Dagger)

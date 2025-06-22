@@ -14,38 +14,48 @@ jobs:
       EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
       EC2_SSH_USER: ${{ secrets.EC2_SSH_USER }}
       EC2_SSH_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }} # Corrected secret name for Python script
-      DAGGER_TIMEOUT: 900 # Increased Dagger engine timeout to 15 minutes
+      # DAGGER_TIMEOUT: 900 # Keep this here for good measure, but we'll also try in code
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v5 # Good practice to explicitly set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x" # Or a specific version like '3.10'
+          python-version: "3.x"
 
       - name: Install Python dependencies
         run: pip install dagger-io
 
-      # --- IMPORTANT DIAGNOSTIC STEPS FOR DAGGER TIMEOUT ---
-      # These steps check the health of Docker on the GitHub Actions runner itself,
-      # as Dagger relies on it to start its engine.
-      - name: Check Docker Daemon Status on GitHub Actions Runner
+      # --- Enhanced Docker Diagnostics and Cleanup on GitHub Actions Runner ---
+      # Ensure Docker on the runner is healthy for Dagger's engine.
+      - name: Prepare Docker on GitHub Actions Runner for Dagger
         run: |
-          echo "--- Docker Info ---"
-          docker info || true # '|| true' prevents step from failing if command has non-zero exit
-          echo "--- Running Docker Containers ---"
+          echo "--- Checking existing Docker state ---"
+          docker info || true
           docker ps -a || true
-          echo "--- Docker Systemctl Status (Requires sudo) ---"
-          sudo systemctl status docker || true
-          echo "--- Docker Logs (tail) ---"
-          # Get Docker daemon logs. Path might vary slightly.
-          sudo journalctl -u docker.service --since "5 minutes ago" || true
-        # Adding 'continue-on-error: true' allows the workflow to proceed for inspection
-        # even if these diagnostic commands themselves have minor issues or empty output.
-        continue-on-error: true
-      # --- END DIAGNOSTIC STEPS ---
+
+          # Attempt to clean up any old, stuck Dagger engine containers
+          echo "--- Stopping and removing old Dagger engine containers ---"
+          docker stop $(docker ps -a -q --filter ancestor=ghcr.io/dagger/engine || true) || true
+          docker rm $(docker ps -a -q --filter ancestor=ghcr.io/dagger/engine || true) || true
+
+          echo "--- Pruning unused Docker data (optional, but can free space) ---"
+          docker system prune -f || true # This removes exited containers, unused images, etc.
+
+          echo "--- Verifying Docker daemon status ---"
+          sudo systemctl status docker || true # Check if the service is running
+          sudo journalctl -u docker.service --since "10 minutes ago" || true # More recent logs
+
+          echo "--- Ensuring Docker user permissions ---"
+          # Ensure the current user (runner) can use docker without sudo
+          sudo usermod -aG docker "$USER" || true
+          # Newgrp is used to apply group changes to the current shell session
+          # It's tricky in Actions, but a full relogin (which a new step often implies) might do it.
+          newgrp docker || true
+        continue-on-error: true # Allow to proceed for inspection
+      # --- END Enhanced Docker Diagnostics and Cleanup ---
 
       - name: Run EC2 setup pipeline
         run: |
